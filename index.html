@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Phonics Pac-Man: Drag & Drop Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            margin: 0; background: #000; color: #fff;
+            font-family: 'Arial Black', Gadget, sans-serif;
+            overflow: hidden; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* TITLE PAGE WITH BOTTOM BUTTON */
+        #title-page {
+            position: absolute; inset: 0; display: flex;
+            align-items: flex-end; justify-content: center; z-index: 300;
+            background: url('intro.jpg') no-repeat center center;
+            background-size: cover;
+            padding-bottom: 80px; /* Space from bottom */
+        }
+
+        /* ROUND PROMPT SCREEN */
+        #prompt-screen {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100;
+            background: url('intro.jpg') no-repeat center center;
+            background-size: cover; text-align: center;
+            display: none; 
+        }
+        
+        .overlay-card {
+            background: rgba(0, 0, 0, 0.85); padding: 40px;
+            border-radius: 30px; border: 5px solid #ffff00;
+        }
+
+        #game-stage {
+            display: none; width: 100vw; height: 100vh; position: relative;
+            background: url('bg3.jpg') no-repeat center center;
+            background-size: cover;
+        }
+
+        .player-side {
+            width: 100%; height: 100%; position: relative;
+            box-sizing: border-box; background: rgba(0, 0, 0, 0.1);
+            transition: background 0.3s;
+        }
+
+        .ui-top {
+            position: absolute; top: 15px; left: 5%; width: 90%;
+            display: flex; justify-content: space-between; align-items: center; z-index: 50;
+        }
+        .ui-box {
+            background: rgba(0, 0, 0, 0.9); padding: 10px 20px;
+            border-radius: 15px; font-size: 1.5rem; border: 3px solid #0000ff;
+            min-width: 140px; text-align: center;
+        }
+        .target-box { background: #ffff00; color: #000; font-weight: bold; border-color: #fff; }
+
+        .arena { position: absolute; inset: 110px 20px 20px 20px; overflow: hidden; }
+
+        .pacman {
+            position: absolute; width: 85px; height: 85px;
+            background: #ffff00; border-radius: 50%;
+            z-index: 20; transform: translate(-50%, -50%);
+            cursor: grab; box-shadow: 0 0 25px #ffff00;
+        }
+        
+        .pacman::after {
+            content: ''; position: absolute; right: -2px; top: 22px;
+            width: 0; height: 0; border-style: solid;
+            border-width: 20px 30px 20px 0; border-color: transparent rgba(0,0,0,0.8) transparent transparent;
+        }
+
+        .word-token {
+            position: absolute; padding: 15px 30px; border-radius: 15px;
+            font-size: 2rem; font-weight: 900; background: rgba(255, 255, 255, 0.95);
+            border: 4px solid #000; color: #000;
+            transform: translate(-50%, -50%); z-index: 5; white-space: nowrap;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .finish-banner {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: #00ff00; color: #000; padding: 20px 40px;
+            border-radius: 50px; font-size: 3rem; font-weight: bold;
+            z-index: 100; transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 5px solid white;
+        }
+
+        .screen {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 200;
+            background: rgba(0,0,0,0.95); text-align: center;
+        }
+
+        .score-display { display: flex; gap: 40px; margin: 20px 0; }
+        .score-card {
+            background: rgba(255,255,255,0.1); padding: 30px; border-radius: 20px; 
+            border: 4px solid #fff; min-width: 200px;
+        }
+
+        .btn {
+            padding: 25px 60px; font-size: 2.5rem; background: #ffff00;
+            border-radius: 50px; cursor: pointer; font-weight: bold;
+            border: 4px solid #000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            color: #000;
+        }
+
+        .frozen { background: rgba(255, 0, 0, 0.4) !important; }
+        .winner-glow { border-color: #ffff00; box-shadow: 0 0 30px #ffff00; }
+    </style>
+</head>
+<body>
+
+    <!-- TITLE PAGE -->
+    <div id="title-page">
+        <button class="btn" onclick="initGame()">START GAME</button>
+    </div>
+
+    <!-- ROUND PROMPT SCREEN -->
+    <div id="prompt-screen">
+        <div class="overlay-card">
+            <h2 id="round-title" style="color: #ffff00; font-size: 3rem; margin: 0;">ROUND 1</h2>
+            <h1 id="round-instruction" style="font-size: 4rem; margin: 10px 0;">FIND 3 SOFT G WORDS</h1>
+            <p style="font-size: 1.8rem; color: #fff;">DRAG Pac-Man to eat the correct words!</p>
+            <p style="color: #ff4444; font-weight: bold;">Wrong answers freeze you for 3 seconds!</p>
+            <button class="btn" onclick="startRound()">START ROUND</button>
+        </div>
+    </div>
+
+    <!-- INTERMISSION SCREEN -->
+    <div id="intermission-screen" class="screen" style="display:none;">
+        <h1 id="round-summary-title" style="font-size: 3.5rem; color: #ffff00; margin-bottom: 0;">ROUND RESULTS</h1>
+        <div class="score-display">
+            <div class="score-card"><h3>ROUND SCORE</h3><p id="round-score-display" style="font-size: 3rem; margin: 0;">0</p></div>
+        </div>
+        <button class="btn" onclick="nextRoundSetup()">CONTINUE</button>
+    </div>
+
+    <!-- FINAL GAME SCORE SCREEN -->
+    <div id="final-screen" class="screen" style="display:none; background: radial-gradient(circle, #1a1a1a, #000);">
+        <h1 style="font-size: 5rem; color: #ffff00;">GAME OVER</h1>
+        <div class="score-display">
+            <div class="score-card winner-glow" id="final-card-player"><h3>TOTAL SCORE</h3><p id="final-score-display" style="font-size: 5rem; margin: 0;">0</p></div>
+        </div>
+        <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <!-- GAME STAGE -->
+    <div id="game-stage">
+        <div class="player-side" id="side-player">
+            <div id="finish-banner" class="finish-banner">ROUND CLEAR!</div>
+            <div class="ui-top">
+                <div class="ui-box" id="score-box">Score: 0</div>
+                <div class="ui-box target-box" id="target-display">SOFT G</div>
+                <div class="ui-box" id="remain-box">0/3</div>
+            </div>
+            <div class="arena" id="arena-player"><div class="pacman" id="pacman-player"></div></div>
+        </div>
+    </div>
+
+<script>
+    const wordPool = {
+        soft: ["bridge", "giant", "gym", "angel", "huge", "giraffe", "ginger", "Egypt", "gel", "gin"],
+        hard: ["gate", "goat", "gum", "gain", "gown", "gap", "rug", "slug", "egg", "peg"]
+    };
+    const roundModes = ["soft", "hard", "soft", "hard", "soft", "hard"];
+    let currentRound = 0, gameActive = false;
+    let totalScore = 0;
+    let mainPlayer;
+
+    const sndIntro = new Audio('introsound.mp3');
+    const sndRight = new Audio('right.mp3');
+    const sndWrong = new Audio('wrong.mp3');
+
+    function initGame() {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) { elem.requestFullscreen(); }
+        else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
+        else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
+
+        document.getElementById('title-page').style.display = 'none';
+        showPrompt();
+    }
+
+    class ArenaSide {
+        constructor() {
+            this.el = document.getElementById('pacman-player');
+            this.arena = document.getElementById('arena-player');
+            this.container = document.getElementById('side-player');
+            this.targetLabel = document.getElementById('target-display');
+            this.roundScore = 0; this.targetsEaten = 0; this.finished = false;
+            this.targetType = roundModes[currentRound];
+            this.tokens = []; this.isDragging = false;
+            this.x = 0; this.y = 0; this.lockTimer = 0;
+            this.targetLabel.innerText = this.targetType.toUpperCase() + " G";
+        }
+        setup() {
+            const r = this.arena.getBoundingClientRect();
+            this.x = r.width/2; this.y = r.height/2;
+            this.updatePos(); this.spawn();
+            const handleStart = (e) => { if(!gameActive || this.finished || this.lockTimer > 0) return; this.isDragging = true; };
+            const handleMove = (e) => {
+                if(!this.isDragging || this.lockTimer > 0) return;
+                const rect = this.arena.getBoundingClientRect();
+                const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                this.x = cx - rect.left; this.y = cy - rect.top;
+                this.updatePos(); this.checkCollision();
+            };
+            this.el.addEventListener('mousedown', handleStart);
+            this.el.addEventListener('touchstart', handleStart);
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('touchmove', handleMove);
+            window.addEventListener('mouseup', () => this.isDragging = false);
+            window.addEventListener('touchend', () => this.isDragging = false);
+        }
+        spawn() {
+            this.arena.querySelectorAll('.word-token').forEach(t => t.remove());
+            let targets = [...wordPool[this.targetType]].sort(() => 0.5-Math.random()).slice(0, 4);
+            let decoys = [...wordPool[this.targetType === 'soft' ? 'hard' : 'soft']].sort(() => 0.5-Math.random()).slice(0, 4);
+            [...targets, ...decoys].sort(()=>0.5-Math.random()).forEach((w) => {
+                const div = document.createElement('div');
+                div.className = 'word-token'; div.innerText = w;
+                this.arena.appendChild(div);
+                this.tokens.push({ el: div, type: wordPool.soft.includes(w) ? 'soft' : 'hard', x: Math.random()*70+15, y: Math.random()*70+15, vx: (Math.random()-0.5)*0.4, vy: (Math.random()-0.5)*0.4 }); 
+            });
+        }
+        updatePos() { this.el.style.left = this.x + 'px'; this.el.style.top = this.y + 'px'; }
+        checkCollision() {
+            this.tokens.forEach(t => {
+                if(t.active === false) return;
+                const rect = t.el.getBoundingClientRect();
+                const arect = this.arena.getBoundingClientRect();
+                const tx = rect.left - arect.left + rect.width/2;
+                const ty = rect.top - arect.top + rect.height/2;
+                if(Math.hypot(this.x - tx, this.y - ty) < 55) this.eat(t);
+            });
+        }
+        eat(t) {
+            t.active = false; t.el.style.display = 'none';
+            if(t.type === this.targetType) {
+                this.roundScore += 10; this.targetsEaten++;
+                sndRight.currentTime = 0; sndRight.play();
+                document.getElementById('remain-box').innerText = `${this.targetsEaten}/3`;
+                if(this.targetsEaten >= 3) this.complete();
+            } else {
+                this.roundScore = Math.max(0, this.roundScore - 5);
+                this.lockTimer = 180; this.isDragging = false;
+                this.container.classList.add('frozen'); this.el.style.opacity = "0.5";
+                sndWrong.currentTime = 0; sndWrong.play();
+            }
+            document.getElementById('score-box').innerText = `Score: ${this.roundScore}`;
+        }
+        complete() {
+            this.finished = true;
+            document.getElementById('finish-banner').style.transform = "translate(-50%, -50%) scale(1)";
+            confetti({ particleCount: 100, origin: { x: 0.5, y: 0.6 } });
+            setTimeout(endRound, 1500);
+        }
+        animate() {
+            if(this.lockTimer > 0) {
+                this.lockTimer--;
+                if(this.lockTimer === 0) { this.container.classList.remove('frozen'); this.el.style.opacity = "1"; }
+                return;
+            }
+            if(this.finished) return;
+            this.tokens.forEach(t => {
+                if(t.active === false) return;
+                t.x += t.vx; t.y += t.vy;
+                if(t.x < 10 || t.x > 90) t.vx *= -1;
+                if(t.y < 10 || t.y > 90) t.vy *= -1;
+                t.el.style.left = t.x + '%'; t.el.style.top = t.y + '%';
+            });
+        }
+    }
+
+    function showPrompt() {
+        sndIntro.currentTime = 0;
+        sndIntro.play().catch(e => console.log("Audio waiting for interaction"));
+        let type = roundModes[currentRound].toUpperCase();
+        document.getElementById('round-title').innerText = `ROUND ${currentRound+1}`;
+        document.getElementById('round-instruction').innerText = `FIND 3 ${type} G WORDS`;
+        document.getElementById('prompt-screen').style.display = 'flex';
+    }
+
+    function startRound() {
+        sndIntro.pause();
+        document.getElementById('prompt-screen').style.display = 'none';
+        document.getElementById('game-stage').style.display = 'block';
+        document.getElementById('remain-box').innerText = `0/3`;
+        document.getElementById('score-box').innerText = `Score: 0`;
+        mainPlayer = new ArenaSide();
+        mainPlayer.setup();
+        gameActive = true;
+    }
+
+    function endRound() {
+        gameActive = false;
+        document.getElementById('round-score-display').innerText = mainPlayer.roundScore;
+        totalScore += mainPlayer.roundScore;
+        document.getElementById('intermission-screen').style.display = 'flex';
+        currentRound++;
+    }
+
+    function nextRoundSetup() {
+        document.getElementById('intermission-screen').style.display = 'none';
+        if(currentRound >= 6) { showFinalScores(); return; }
+        document.getElementById('finish-banner').style.transform = "translate(-50%, -50%) scale(0)";
+        showPrompt();
+    }
+
+    function showFinalScores() {
+        document.getElementById('game-stage').style.display = 'none';
+        document.getElementById('final-screen').style.display = 'flex';
+        document.getElementById('final-score-display').innerText = totalScore;
+        confetti({ particleCount: 200, spread: 90, origin: { y: 0.6 } });
+    }
+
+    function loop() {
+        if(gameActive) { mainPlayer.animate(); }
+        requestAnimationFrame(loop);
+    }
+    loop();
+</script>
+</body>
+</html>
